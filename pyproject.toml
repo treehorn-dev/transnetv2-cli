@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "transnetv2-cli"
+version = "0.1.0"
+description = "Agent-friendly TransNetV2 shot boundary detection CLI"
+requires-python = ">=3.11"
+dependencies = [
+  "ffmpeg-python>=0.2.0",
+  "numpy>=1.26,<3",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=9,<10",
+]
+transnetv2 = [
+  "torch>=2.2,<3",
+  "transnetv2pt @ git+https://github.com/badde57/transnetv2pt.git@v1.0.0#egg=transnetv2pt",
+]
+
+[project.scripts]
+transnetv2-cli = "transnetv2_cli.cli:main_entry"
+
+[tool.setuptools.packages.find]
+include = ["transnetv2_cli*"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+cache_dir = "/tmp/transnetv2-cli-pytest-cache"
+testpaths = ["tests"]

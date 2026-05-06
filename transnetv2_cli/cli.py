@@ -166,6 +166,9 @@ def detect_main(args: argparse.Namespace, raw: str, executable: str) -> int:
             {
                 "backend": detection.backend,
                 "model": detection.model,
+                "resolved_device": detection.resolved_device,
+                "cuda_available": detection.cuda_available,
+                "decode_backend": detection.decode_backend,
                 "output": str(output_path),
                 "shots": len(shots),
                 "schema": payload["schema"],

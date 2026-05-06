@@ -24,13 +24,21 @@ class DetectionResult:
     shots: list[dict[str, Any]]
     total_frames: int | None = None
     duration_ms: int | None = None
+    resolved_device: str | None = None
+    cuda_available: bool | None = None
+    decode_backend: str = "ffmpeg-cpu"
 
 
 def resolve_device(torch_module: Any, requested: str | None = None) -> str:
-    if requested:
-        return requested
     mps = getattr(getattr(torch_module, "mps", None), "is_available", lambda: False)
     cuda = getattr(getattr(torch_module, "cuda", None), "is_available", lambda: False)
+    if requested:
+        requested_lower = requested.lower()
+        if requested_lower.startswith("cuda") and not cuda():
+            raise BackendUnavailableError("CUDA was requested but torch.cuda.is_available() is false.")
+        if requested_lower == "mps" and not mps():
+            raise BackendUnavailableError("MPS was requested but torch.backends.mps.is_available() is false.")
+        return requested
     if mps():
         return "mps"
     if cuda():
@@ -103,6 +111,7 @@ def load_model(TransNetV2: Any, torch_module: Any, device: str):
             model.load_state_dict(torch_module.load(str(weights_path), map_location=torch_module.device(device)))
     except FileNotFoundError as exc:  # pragma: no cover - real package condition
         raise BackendUnavailableError('TransNetV2 weights were not found in the installed package.') from exc
+    model.eval()
     return model
 
 
@@ -126,6 +135,7 @@ def detect_with_transnetv2(
     shots, total_frames, duration_ms = normalize_transitions(
         transitions, fps=fps, min_shot_ms=min_shot_ms, include_probs=include_probs
     )
+    cuda_available = bool(getattr(getattr(torch, "cuda", None), "is_available", lambda: False)())
     return DetectionResult(
         backend="transnetv2",
         model="transnetv2pt",
@@ -134,4 +144,7 @@ def detect_with_transnetv2(
         shots=shots,
         total_frames=total_frames,
         duration_ms=duration_ms,
+        resolved_device=resolved_device,
+        cuda_available=cuda_available,
+        decode_backend="ffmpeg-cpu",
     )

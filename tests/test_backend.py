@@ -1,6 +1,8 @@
 from types import SimpleNamespace
 
-from transnetv2_cli.backend import normalize_transitions, resolve_device
+import pytest
+
+from transnetv2_cli.backend import BackendUnavailableError, normalize_transitions, resolve_device
 
 
 def test_resolve_device_prefers_mps_then_cuda_then_cpu():
@@ -21,6 +23,16 @@ def test_resolve_device_prefers_mps_then_cuda_then_cpu():
         cuda=SimpleNamespace(is_available=lambda: False),
     )
     assert resolve_device(torch) == "cpu"
+
+
+def test_resolve_device_rejects_unavailable_requested_cuda():
+    torch = SimpleNamespace(
+        mps=SimpleNamespace(is_available=lambda: False),
+        cuda=SimpleNamespace(is_available=lambda: False),
+    )
+
+    with pytest.raises(BackendUnavailableError, match="CUDA was requested"):
+        resolve_device(torch, requested="cuda")
 
 
 def test_normalize_transitions_filters_short_shots_and_emits_ms():

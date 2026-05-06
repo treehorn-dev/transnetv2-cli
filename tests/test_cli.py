@@ -52,6 +52,9 @@ def test_detect_writes_shots_json(monkeypatch, capsys, tmp_path):
             source_video=str(video),
             total_frames=100,
             duration_ms=4000,
+            resolved_device="cuda",
+            cuda_available=True,
+            decode_backend="ffmpeg-cpu",
             shots=[
                 {
                     "index": 0,
@@ -72,6 +75,9 @@ def test_detect_writes_shots_json(monkeypatch, capsys, tmp_path):
     payload = json.loads(capsys.readouterr().out)
     assert payload["ok"] is True
     assert payload["result"]["output"] == str(output)
+    assert payload["result"]["resolved_device"] == "cuda"
+    assert payload["result"]["cuda_available"] is True
+    assert payload["result"]["decode_backend"] == "ffmpeg-cpu"
     assert output.exists()
 
     artifact = json.loads(output.read_text())
@@ -94,6 +100,9 @@ def test_detect_output_is_clean_json_even_if_backend_prints(monkeypatch, capsys,
             source_video=str(video),
             total_frames=100,
             duration_ms=4000,
+            resolved_device="cpu",
+            cuda_available=False,
+            decode_backend="ffmpeg-cpu",
             shots=[
                 {
                     "index": 0,

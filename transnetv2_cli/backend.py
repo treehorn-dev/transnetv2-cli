@@ -5,6 +5,7 @@ import importlib.resources
 import io
 import sys
 from dataclasses import dataclass
+import numpy as np
 from pathlib import Path
 from typing import Any
 
@@ -27,6 +28,8 @@ class DetectionResult:
     resolved_device: str | None = None
     cuda_available: bool | None = None
     decode_backend: str = "ffmpeg-cpu"
+    raw_single_frame_pred: np.ndarray | None = None
+    raw_all_frame_pred: np.ndarray | None = None
 
 
 def resolve_device(torch_module: Any, requested: str | None = None) -> str:
@@ -130,7 +133,7 @@ def detect_with_transnetv2(
     model = load_model(TransNetV2, torch, resolved_device)
     # transnetv2pt emits progress to stdout; redirect it away from the JSON CLI channel.
     with contextlib.redirect_stdout(sys.stderr):
-        _, single_frame_pred, _ = predict_raw(model, video, device=torch.device(resolved_device))
+        _, single_frame_pred, all_frame_pred = predict_raw(model, video, device=torch.device(resolved_device))
         transitions = predictions_to_scenes(single_frame_pred, threshold=threshold, probs=True)
     shots, total_frames, duration_ms = normalize_transitions(
         transitions, fps=fps, min_shot_ms=min_shot_ms, include_probs=include_probs
@@ -147,4 +150,6 @@ def detect_with_transnetv2(
         resolved_device=resolved_device,
         cuda_available=cuda_available,
         decode_backend="ffmpeg-cpu",
+        raw_single_frame_pred=single_frame_pred,
+        raw_all_frame_pred=all_frame_pred,
     )

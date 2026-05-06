@@ -1,4 +1,6 @@
 import json
+
+import pytest
 from pathlib import Path
 
 import transnetv2_cli.cli as cli
@@ -119,3 +121,56 @@ def test_detect_output_is_clean_json_even_if_backend_prints(monkeypatch, capsys,
 
     payload = json.loads(capsys.readouterr().out)
     assert payload["ok"] is True
+
+def test_detect_writes_raw_predictions_npz(monkeypatch, capsys, tmp_path):
+    import numpy as np
+
+    video = tmp_path / "clip.mp4"
+    video.write_bytes(b"fake")
+    output = tmp_path / "clip.shots.json"
+    raw_output = tmp_path / "clip.transnet.raw.npz"
+
+    monkeypatch.setattr(
+        cli,
+        "detect_with_transnetv2",
+        lambda *args, **kwargs: DetectionResult(
+            backend="transnetv2",
+            model="transnetv2pt",
+            fps=25.0,
+            source_video=str(video),
+            total_frames=100,
+            duration_ms=4000,
+            resolved_device="cuda",
+            cuda_available=True,
+            decode_backend="ffmpeg-cpu",
+            shots=[
+                {
+                    "index": 0,
+                    "start_ms": 0,
+                    "end_ms": 1000,
+                    "duration_ms": 1000,
+                }
+            ],
+            raw_single_frame_pred=np.array([0.1, 0.9], dtype=np.float32),
+            raw_all_frame_pred=np.array([[0.2, 0.8], [0.7, 0.3]], dtype=np.float32),
+        ),
+    )
+
+    exit_code = cli.main([
+        "detect",
+        "--input",
+        str(video),
+        "--output",
+        str(output),
+        "--raw-output",
+        str(raw_output),
+    ])
+    assert exit_code == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["result"]["raw_output"] == str(raw_output)
+    assert raw_output.exists()
+
+    artifact = np.load(raw_output)
+    assert artifact["single_frame_pred"].tolist() == pytest.approx([0.1, 0.9])
+    assert artifact["all_frame_pred"].shape == (2, 2)

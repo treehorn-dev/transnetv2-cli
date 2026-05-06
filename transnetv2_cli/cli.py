@@ -4,6 +4,7 @@ import argparse
 import contextlib
 import io
 import json
+import numpy as np
 import os
 import sys
 from pathlib import Path
@@ -28,6 +29,7 @@ def build_parser() -> argparse.ArgumentParser:
     detect_parser.add_argument("--min-shot-ms", type=int, default=0)
     detect_parser.add_argument("--device")
     detect_parser.add_argument("--include-probs", action="store_true")
+    detect_parser.add_argument("--raw-output")
 
     return parser
 
@@ -67,6 +69,17 @@ def main_entry() -> None:
     raise SystemExit(main(sys.argv[1:], executable="transnetv2-cli"))
 
 
+def write_raw_predictions(output_path: Path, detection) -> None:
+    if detection.raw_single_frame_pred is None and detection.raw_all_frame_pred is None:
+        return
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(
+        output_path,
+        single_frame_pred=detection.raw_single_frame_pred,
+        all_frame_pred=detection.raw_all_frame_pred,
+    )
+
+
 def detect_main(args: argparse.Namespace, raw: str, executable: str) -> int:
     parsed = {
         "path": ["detect"],
@@ -77,6 +90,7 @@ def detect_main(args: argparse.Namespace, raw: str, executable: str) -> int:
             "threshold": args.threshold,
             "min_shot_ms": args.min_shot_ms,
             "device": args.device,
+            "raw_output": args.raw_output,
         },
         "flags": {
             "include_probs": bool(args.include_probs),
@@ -118,6 +132,7 @@ def detect_main(args: argparse.Namespace, raw: str, executable: str) -> int:
         return 1
 
     output_path = Path(args.output) if args.output else input_path.with_name(f"{input_path.stem}.shots.json")
+    raw_output_path = Path(args.raw_output) if args.raw_output else None
 
     try:
         # Backends may print progress; keep stdout clean for the JSON envelope.
@@ -155,6 +170,8 @@ def detect_main(args: argparse.Namespace, raw: str, executable: str) -> int:
     )
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(payload, indent=2) + "\n")
+    if raw_output_path is not None:
+        write_raw_predictions(raw_output_path, detection)
 
     emit(
         success_response(
@@ -172,6 +189,7 @@ def detect_main(args: argparse.Namespace, raw: str, executable: str) -> int:
                 "output": str(output_path),
                 "shots": len(shots),
                 "schema": payload["schema"],
+                **({"raw_output": str(raw_output_path)} if raw_output_path is not None else {}),
             },
             [
                 {
